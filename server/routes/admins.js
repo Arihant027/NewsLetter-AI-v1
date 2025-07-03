@@ -28,22 +28,32 @@ router.get('/my-categories-stats', auth, async (req, res) => {
     try {
         const admin = await User.findById(req.user);
         if (!admin || !admin.categories || admin.categories.length === 0) return res.json([]);
+
+        const categories = await Category.find({ name: { $in: admin.categories }});
+
         const stats = await Promise.all(
-            admin.categories.map(async (name) => {
-                const subscriberCount = await User.countDocuments({ userType: 'user', categories: name });
-                const newsletterCount = await Newsletter.countDocuments({ category: name });
-                return { name, subscriberCount, newsletterCount };
+            categories.map(async (category) => {
+                const subscriberCount = await User.countDocuments({ userType: 'user', categories: category.name });
+                const newsletterCount = await Newsletter.countDocuments({ category: category.name });
+                return {
+                    _id: category._id,
+                    name: category.name,
+                    subscriberCount,
+                    newsletterCount,
+                    keywords: category.keywords
+                };
             })
         );
         res.json(stats);
     } catch (err) { res.status(500).json({ message: 'Server error fetching category stats.', error: err.message }); }
 });
 
+
 // GET all users subscribed to the logged-in admin's categories
 router.get('/my-subscribers', auth, async (req, res) => {
     try {
         const admin = await User.findById(req.user);
-        if (!admin || !admin.categories || admin.categories.length === 0) return res.json([]); 
+        if (!admin || !admin.categories || admin.categories.length === 0) return res.json([]);
         const subscribers = await User.find({ userType: 'user', categories: { $in: admin.categories } }).select('name email categories');
         res.json(subscribers);
     } catch (err) { res.status(500).json({ message: 'Server error fetching subscribers.', error: err.message }); }

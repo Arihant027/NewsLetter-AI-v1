@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { FileText, Clock, CheckCircle, Users, ListTodo, Newspaper, AlertCircle, XCircle, ExternalLink, Sparkles, Loader2, Save, FileSignature, Trash2, Share2, Calendar as CalendarIcon, Plus, Copy, UserPlus, ChevronsUpDown, CheckCheck, Download, Mail } from 'lucide-react';
+import { FileText, Clock, CheckCircle, Users, ListTodo, Newspaper, AlertCircle, XCircle, ExternalLink, Sparkles, Loader2, Save, FileSignature, Trash2, Share2, Calendar as CalendarIcon, Plus, Copy, UserPlus, ChevronsUpDown, CheckCheck, Download, Mail, Edit } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AdminHeader } from '@/components/AdminHeader';
 import { useAuth } from '@/context/AuthContext';
@@ -33,7 +33,7 @@ import { useSearchParams } from 'react-router-dom';
 // --- Data Types ---
 interface Newsletter { _id: string; title: string; category: string; status: 'Not Sent' | 'pending' | 'approved' | 'declined' | 'sent'; articles: { _id: string }[]; createdAt: string; }
 interface Subscriber { _id: string; name: string; email: string; categories: string[]; }
-interface CategoryStat { name: string; subscriberCount: number; newsletterCount: number; }
+interface CategoryStat { _id: string; name: string; subscriberCount: number; newsletterCount: number; keywords: string[]; }
 interface NewsArticle { source: { name: string; }; title: string; description: string; url: string; urlToImage: string; content: string; summary?: string; }
 interface CuratedArticle { _id: string; title: string; summary: string; sourceName: string; category: string; originalUrl: string; imageUrl?: string;}
 interface SystemCategory { _id: string; name: string; }
@@ -45,6 +45,14 @@ const addUserSchema = z.object({
   categories: z.array(z.string()).default([]),
 });
 type AddUserFormData = z.infer<typeof addUserSchema>;
+
+const categorySchema = z.object({
+  _id: z.string().optional(),
+  name: z.string().min(2, "Name is required."),
+  keywords: z.array(z.string()).default([]),
+});
+type CategoryFormData = z.infer<typeof categorySchema>;
+
 
 const Dashboard = () => {
     const [searchParams, setSearchParams] = useSearchParams();
@@ -71,8 +79,12 @@ const Dashboard = () => {
     const [shareSearchTerm, setShareSearchTerm] = useState('');
     const [articleFilter, setArticleFilter] = useState('all');
     const [categoryToAdd, setCategoryToAdd] = useState<string>('');
+    const [isCategoryFormOpen, setIsCategoryFormOpen] = useState(false);
+    const [editingCategory, setEditingCategory] = useState<CategoryStat | null>(null);
 
     const addUserForm = useForm<AddUserFormData>({ resolver: zodResolver(addUserSchema), defaultValues: { name: "", email: "", categories: [] } });
+    const categoryForm = useForm<CategoryFormData>({ resolver: zodResolver(categorySchema), defaultValues: { keywords: [] } });
+
 
     useEffect(() => {
         const timer = setInterval(() => setCurrentDateTime(new Date()), 1000);
@@ -210,6 +222,20 @@ const Dashboard = () => {
             toast.error(err.message || "Failed to share details.");
         }
     });
+    
+    const upsertCategoryMutation = useMutation<SystemCategory, Error, CategoryFormData>({
+        mutationFn: (data: CategoryFormData) => {
+          const { _id, ...categoryData } = data;
+          const url = `/categories/${_id}`;
+          return fetchWithToken(url, token, { method: 'PATCH', body: JSON.stringify(categoryData) });
+        },
+        onSuccess: () => {
+          toast.success(`Category updated successfully!`);
+          queryClient.invalidateQueries({ queryKey: ['myCategoryStats'] });
+          setIsCategoryFormOpen(false);
+        },
+        onError: (err: Error) => toast.error(err.message),
+      });
 
     // --- Event Handlers & Memoized Values ---
     const handleOpenShareDialog = (newsletter: Newsletter) => { setSelectedUserIds([]); setShareSearchTerm(''); setSharingNewsletter(newsletter); setIsShareDialogOpen(true); };
@@ -227,6 +253,12 @@ const Dashboard = () => {
             setCategoryToAdd(categoryStats[0].name);
         }
     }, [isAddExistingUserDialogOpen, categoryStats, categoryToAdd]);
+
+    useEffect(() => {
+        if (isCategoryFormOpen && editingCategory) {
+            categoryForm.reset({ _id: editingCategory._id, name: editingCategory.name, keywords: editingCategory.keywords || [] });
+        }
+    }, [isCategoryFormOpen, editingCategory, categoryForm]);
     
     const handleAddExistingUsersSubmit = () => {
         if (usersToAdd.length === 0) {
@@ -239,6 +271,11 @@ const Dashboard = () => {
         }
         addUsersToCategoryMutation.mutate({ userIds: usersToAdd, category: categoryToAdd });
     };
+
+    const handleOpenCategoryDialog = (category: CategoryStat | null = null) => {
+        setEditingCategory(category);
+        setIsCategoryFormOpen(true);
+      };
     
     const assignableUsers = useMemo(() => { if (!allUsers) return []; if (!subscribers) return allUsers; const subscribedIds = new Set(subscribers.map(s => s._id)); return allUsers.filter(u => !subscribedIds.has(u._id)); }, [allUsers, subscribers]);
     const groupedUsersByCategory = useMemo(() => { if (!allUsers) return {}; return allUsers.reduce((acc, user) => { user.categories.forEach(category => { if (!acc[category]) { acc[category] = []; } acc[category].push(user); }); return acc; }, {} as Record<string, Subscriber[]>); }, [allUsers]);
@@ -384,7 +421,39 @@ const Dashboard = () => {
                             </Card>
                         </TabsContent>
                         <TabsContent value="generated-newsletters" className="mt-6"><Card><CardHeader><div className='flex items-center justify-between'><div><CardTitle>Generated Newsletters</CardTitle><CardDescription>View, approve, or decline previously generated newsletters.</CardDescription></div><Popover><PopoverTrigger asChild><Button id="date" variant={"outline"} className={cn("w-[240px] justify-start text-left font-normal",!filterDate && "text-muted-foreground")}><CalendarIcon className="mr-2 h-4 w-4" />{filterDate ? format(filterDate, "PPP") : <span>Filter by date</span>}</Button></PopoverTrigger><PopoverContent className="w-auto p-0" align="end"><Calendar initialFocus mode="single" selected={filterDate} onSelect={setFilterDate} /></PopoverContent></Popover></div></CardHeader><CardContent className="space-y-4">{renderNewsletterList()}</CardContent></Card></TabsContent>
-                        <TabsContent value="categories" className="mt-6"><div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">{renderMyCategories()}</div></TabsContent>
+                        <TabsContent value="categories" className="mt-6">
+                            <Card>
+                                <CardHeader>
+                                    <div className="flex justify-between items-center">
+                                        <div>
+                                            <CardTitle>My Categories</CardTitle>
+                                            <CardDescription>Manage the keywords for your assigned categories.</CardDescription>
+                                        </div>
+                                    </div>
+                                </CardHeader>
+                                <CardContent className="space-y-4">
+                                    {isLoadingCategoryStats ? (
+                                    Array.from({ length: 2 }).map((_, i) => <Skeleton key={i} className="h-24 w-full" />)
+                                    ) : categoryStatsError ? (
+                                    <Alert variant="destructive"><AlertDescription>{categoryStatsError.message}</AlertDescription></Alert>
+                                    ) : !categoryStats || categoryStats.length === 0 ? (
+                                    <p className="text-center text-muted-foreground py-8">You are not assigned to any categories.</p>
+                                    ) : (
+                                    categoryStats.map((cat) => (
+                                        <div key={cat._id} className="flex items-center justify-between p-4 border rounded-lg">
+                                            <div>
+                                                <h3 className="font-semibold">{cat.name}</h3>
+                                                <p className="text-sm text-muted-foreground">Keywords: {cat.keywords?.join(', ') || 'Not set'}</p>
+                                            </div>
+                                            <Button variant="outline" size="sm" onClick={() => handleOpenCategoryDialog(cat)}>
+                                                <Edit className="w-4 h-4 mr-1" />Edit
+                                            </Button>
+                                        </div>
+                                    ))
+                                    )}
+                                </CardContent>
+                            </Card>
+                        </TabsContent>
                         <TabsContent value="users" className="mt-6"><Card><CardHeader><div className='flex items-center justify-between'><div><CardTitle className="flex items-center gap-2"><Users className='w-5 h-5' /> Subscribed Users</CardTitle><CardDescription>Users subscribed to your assigned categories.</CardDescription></div>
                         <DropdownMenu><DropdownMenuTrigger asChild><Button><Plus className='w-4 h-4 mr-2' />Add User</Button></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onSelect={() => setIsAddUserDialogOpen(true)}><UserPlus className="mr-2 h-4 w-4" />Create New User</DropdownMenuItem><DropdownMenuItem onSelect={handleOpenAddExistingDialog}><ChevronsUpDown className="mr-2 h-4 w-4" />Add Existing Users</DropdownMenuItem></DropdownMenuContent></DropdownMenu>
                         </div></CardHeader><CardContent>{renderUserManagement()}</CardContent></Card></TabsContent>
@@ -485,6 +554,40 @@ const Dashboard = () => {
                         Generate PDF
                     </Button>
                 </DialogFooter>
+            </DialogContent>
+        </Dialog>
+        <Dialog open={isCategoryFormOpen} onOpenChange={setIsCategoryFormOpen}>
+            <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                <DialogTitle>Edit Category</DialogTitle>
+                </DialogHeader>
+                <form onSubmit={categoryForm.handleSubmit(data => upsertCategoryMutation.mutate(data))} className="space-y-4 pt-4">
+                <Input type="hidden" {...categoryForm.register("_id")} />
+                <div>
+                    <Label htmlFor="category-name">Category Name</Label>
+                    <Input id="category-name" {...categoryForm.register("name")} readOnly />
+                </div>
+                <div>
+                    <Label htmlFor="category-keywords">Keywords (comma-separated)</Label>
+                    <Controller
+                        name="keywords"
+                        control={categoryForm.control}
+                        render={({ field }) => (
+                            <Input
+                            id="category-keywords"
+                            value={Array.isArray(field.value) ? field.value.join(', ') : ''}
+                            onChange={(e) => field.onChange(e.target.value.split(',').map(kw => kw.trim()))}
+                            />
+                        )}
+                    />
+                </div>
+                <DialogFooter>
+                    <Button type="button" variant="secondary" onClick={() => setIsCategoryFormOpen(false)}>Cancel</Button>
+                    <Button type="submit" disabled={upsertCategoryMutation.isPending}>
+                    {upsertCategoryMutation.isPending ? "Saving..." : "Save"}
+                    </Button>
+                </DialogFooter>
+                </form>
             </DialogContent>
         </Dialog>
       </div>
