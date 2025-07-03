@@ -14,14 +14,21 @@ const genAI = process.env.GEMINI_API_KEY ? new GoogleGenerativeAI(process.env.GE
 router.get('/', auth, async (req, res) => {
     try {
         const admin = await User.findById(req.user);
-        if (!admin || !admin.categories || admin.categories.length === 0) {
-            return res.json({ articles: [] });
+        let query;
+
+        if (req.query.search) {
+            query = req.query.search;
+        } else {
+            if (!admin || !admin.categories || admin.categories.length === 0) {
+                return res.json({ articles: [] });
+            }
+    
+            const categories = await Category.find({ name: { $in: admin.categories } });
+            const allKeywords = categories.flatMap(cat => cat.keywords && cat.keywords.length > 0 ? cat.keywords : `"${cat.name}"`);
+    
+            query = allKeywords.join(' OR ');
         }
 
-        const categories = await Category.find({ name: { $in: admin.categories } });
-        const allKeywords = categories.flatMap(cat => cat.keywords && cat.keywords.length > 0 ? cat.keywords : `"${cat.name}"`);
-
-        const query = allKeywords.join(' OR ');
 
         const fromDate = format(subDays(new Date(), 7), 'yyyy-MM-dd');
 
@@ -45,6 +52,7 @@ router.get('/', auth, async (req, res) => {
         res.status(500).json({ message: 'Failed to fetch news from NewsAPI.org.', error: err.message });
     }
 });
+
 
 // POST /api/news/summarize - Summarize article text using Gemini
 router.post('/summarize', auth, async (req, res) => {
