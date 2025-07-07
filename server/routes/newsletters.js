@@ -67,12 +67,24 @@ const createAdvancedNewsletterHtmlPrompt = (articles, title, flyerImageUrl) => {
 
         6.  **Footer:**
             * Include a footer with your company name, address, and a link to unsubscribe.
-            * Add social media icons (as links) for platforms like Twitter, LinkedIn, and Facebook.
+            * Add social media icons (as links) for platforms like Twitter, LinkedIn, and Facebook using the provided URLs.
 
         **JSON Data to Use:**
         \`\`\`json
         ${JSON.stringify({ articles: articlesForPrompt }, null, 2)}
         \`\`\`
+
+        **Footer HTML to use:**
+        <div style="text-align: center; padding: 20px; font-size: 12px; color: #777777;">
+            <p>Company Name | 123 Main St, Anytown, USA</p>
+            <p><a href="#" style="color: #007bff; text-decoration: none;">Unsubscribe</a></p>
+            <div>
+                <a href="https://twitter.com" style="margin: 0 5px;"><img src="https://img.icons8.com/color/48/000000/twitter.png" alt="Twitter" style="width: 24px; height: 24px;"></a>
+                <a href="https://linkedin.com" style="margin: 0 5px;"><img src="https://img.icons8.com/color/48/000000/linkedin.png" alt="LinkedIn" style="width: 24px; height: 24px;"></a>
+                <a href="https://facebook.com" style="margin: 0 5px;"><img src="https://img.icons8.com/color/48/000000/facebook-new.png" alt="Facebook" style="width: 24px; height: 24px;"></a>
+            </div>
+        </div>
+
 
         **IMPORTANT: Your response MUST be only the raw HTML code, starting with <!DOCTYPE html>. Do not add any commentary or explanations.**
     `;
