@@ -236,12 +236,18 @@ router.post('/:id/send', auth, async (req, res) => {
                     from: { name: 'NewsLetterAI', email: process.env.FROM_EMAIL },
                     subject: `Your Newsletter: ${newsletter.title}`,
                     html: `
-                        <p>Hi there,</p>
-                        <p>Here is your latest newsletter, <strong>${newsletter.title}</strong>! We've gathered some of the most interesting stories and updates for you. We hope you enjoy it!</p>
-                        ${newsletter.htmlContent}
-                        <p>Thanks for being a subscriber!</p>
-                        <p>Best,</p>
-                        <p>The NewsLetterAI Team</p>
+                        <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+                            <p>Hello,</p>
+                            <p>Your latest issue of <strong>${newsletter.title}</strong> is here. This edition is packed with curated articles and insights to keep you informed on the topics you care about.</p>
+                            <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+                            
+                            ${newsletter.htmlContent}
+                            
+                            <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+                            <p style="font-size: 0.9em; color: #777;">We hope you find this issue valuable. Thank you for being a valued subscriber.</p>
+                            <p style="font-size: 0.9em; color: #777;">Best regards,</p>
+                            <p style="font-size: 0.9em; color: #777;"><strong>The NewsLetterAI Team</strong></p>
+                        </div>
                     `,
                 };
                 await sgMail.send(msg);

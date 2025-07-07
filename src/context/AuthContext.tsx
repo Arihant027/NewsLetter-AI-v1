@@ -22,8 +22,16 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(null);
+  const [token, setToken] = useState<string | null>(() => localStorage.getItem('authToken'));
+  const [user, setUser] = useState<User | null>(() => {
+    const storedUser = localStorage.getItem('user');
+    try {
+      return storedUser ? JSON.parse(storedUser) : null;
+    } catch (error) {
+      console.error("Failed to parse user from localStorage", error);
+      return null;
+    }
+  });
   const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -50,44 +58,26 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     retry: false,
   });
 
-  // FIX: Implemented a more robust check to detect profile changes.
   useEffect(() => {
-    if (syncedUser && user) {
+    if (syncedUser && user && token) {
       const nameChanged = syncedUser.name !== user.name;
       
-      // Sort category arrays before comparing to ensure order doesn't matter.
       const oldCategories = JSON.stringify([...(user.categories || [])].sort());
       const newCategories = JSON.stringify([...(syncedUser.categories || [])].sort());
       const categoriesChanged = oldCategories !== newCategories;
 
       if (nameChanged || categoriesChanged) {
         console.log("User profile change detected. Syncing...");
-        if (token) {
-          login(syncedUser, token);
-          queryClient.invalidateQueries({ queryKey: ['myCategoryStats'] });
-          queryClient.invalidateQueries({ queryKey: ['mySubscribers'] });
-          queryClient.invalidateQueries({ queryKey: ['newsArticles'] });
-        }
+        login(syncedUser, token);
+        queryClient.invalidateQueries({ queryKey: ['myCategoryStats'] });
+        queryClient.invalidateQueries({ queryKey: ['mySubscribers'] });
+        queryClient.invalidateQueries({ queryKey: ['newsArticles'] });
       }
     }
   }, [syncedUser, user, token, queryClient, login]);
 
   useEffect(() => {
-    try {
-      const storedToken = localStorage.getItem('authToken');
-      const storedUser = localStorage.getItem('user');
-      if (storedToken && storedUser) {
-        const parsedUser = JSON.parse(storedUser);
-        setToken(storedToken);
-        setUser(parsedUser);
-      }
-    } catch (error) {
-        console.error("Failed to parse auth data from localStorage", error);
-        localStorage.clear();
-    }
-    finally {
-      setIsLoading(false);
-    }
+    setIsLoading(false);
   }, []);
 
   const logout = () => {
@@ -95,6 +85,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     localStorage.removeItem('user');
     setToken(null);
     setUser(null);
+    queryClient.clear();
     navigate('/login');
   };
 

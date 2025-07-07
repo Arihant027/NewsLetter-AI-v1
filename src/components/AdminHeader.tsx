@@ -1,4 +1,3 @@
-// src/components/AdminHeader.tsx
 import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -94,7 +93,9 @@ export const AdminHeader = () => {
   });
 
   useEffect(() => {
-    if (user) form.reset({ name: user.name, password: '', confirmPassword: '' });
+    if (user && isSettingsDialogOpen) {
+      form.reset({ name: user.name, password: '', confirmPassword: '' });
+    }
   }, [user, isSettingsDialogOpen, form]);
 
   const onSubmitSettings = (data: SettingsFormData) => updateProfileMutation.mutate(data);

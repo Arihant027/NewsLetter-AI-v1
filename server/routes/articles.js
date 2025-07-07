@@ -2,27 +2,24 @@ import { Router } from 'express';
 import CuratedArticle from '../models/article.model.js';
 import User from '../models/user.model.js';
 import auth from '../middleware/auth.js';
-import { subDays, subMonths } from 'date-fns';
 
 const router = Router();
 
-// MODIFIED: This route now accepts a "timeframe" query parameter to filter articles
 router.get('/', auth, async (req, res) => {
     try {
-        const { timeframe } = req.query; // e.g., 'day', 'week', 'month'
+        const { timeframe } = req.query;
         const query = { savedBy: req.user };
 
-        // If a timeframe is provided, add a date condition to the database query
         if (timeframe) {
-            let startDate;
             const now = new Date();
+            let startDate;
 
             if (timeframe === 'day') {
-                startDate = subDays(now, 1);
+                startDate = new Date(now.setDate(now.getDate() - 1));
             } else if (timeframe === 'week') {
-                startDate = subDays(now, 7);
+                startDate = new Date(now.setDate(now.getDate() - 7));
             } else if (timeframe === 'month') {
-                startDate = subMonths(now, 1);
+                startDate = new Date(now.setMonth(now.getMonth() - 1));
             }
 
             if (startDate) {
