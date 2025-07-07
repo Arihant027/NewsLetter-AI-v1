@@ -32,46 +32,49 @@ const createAdvancedNewsletterHtmlPrompt = (articles, title, flyerImageUrl) => {
         imageUrl: a.imageUrl
     }));
 
+    // Conditionally create the flyer image HTML
+    const flyerImageHtml = flyerImageUrl 
+        ? `<img src="${flyerImageUrl}" alt="Flyer Image" style="max-width: 100%; height: auto; display: block; margin-bottom: 20px; border-radius: 5px;">` 
+        : '';
+
     return `
-        Act as an expert HTML and CSS email designer. Your task is to generate a single, complete HTML file for a professional newsletter based on the provided JSON data. The design should be clean, readable, and render reliably as a PDF.
+        Act as an expert HTML and CSS email designer. Your task is to generate a single, complete HTML file for a professional and visually appealing newsletter based on the provided JSON data.
 
         **Design & Layout Guidelines:**
 
         1.  **Overall Structure:**
-            * Use a main container with a max-width of 600px and center it using inline styles (margin: 20px auto;).
-            * The main content area should have a white background (background-color: #ffffff;).
-            * Use a consistent font family like 'Arial, sans-serif' for broad compatibility.
+            * Use a main container with a max-width of 680px, centered with a light gray background (#f4f4f4).
+            * The email body should have a clean, white background (#ffffff) with rounded corners and a subtle shadow.
+            * Use a professional and readable font like 'Helvetica Neue', Helvetica, Arial, sans-serif.
 
-        2.  **Header Section:**
-            * Create a clear header.
-            * Prominently display the main newsletter title: "${title}" (font-size: 24px; font-weight: bold; color: #333333; padding-bottom: 10px; border-bottom: 2px solid #eeeeee; margin-bottom: 20px; text-align: center;).
-            * Below the title, include the Date (${format(new Date(), 'PP')}) and "Edition 1, Volume 1" (display: block; font-size: 12px; color: #777777; text-align: center; margin-bottom: 15px;).
+        2.  **Header:**
+            * Include a preheader text: "Your weekly dose of insightful news."
+            * A main header with the newsletter title "${title}" in a large, bold font (e.g., 32px) and a dark color (#333333).
+            * Include the date (${format(new Date(), 'MMMM do, yyyy')}) in a smaller, lighter font.
 
         3.  **Flyer Image:**
-            * If a \`flyerImageUrl\` is provided, include it at the very top of the newsletter body, right after the header. The image should be responsive within the 600px container (\`max-width: 100%; height: auto; display: block; margin-bottom: 20px; border-radius: 5px;\`).
+            ${flyerImageHtml}
 
-        4.  **Article Layout (Single Column):**
-            * Each article should be separated by a subtle divider (border-bottom: 1px solid #eeeeee; padding-bottom: 20px; margin-bottom: 20px;). The last article should not have this bottom border.
-            * If an \`imageUrl\` is provided for an article, include it at the top of the article section. The image should be responsive within the 600px container (\`max-width: 100%; height: auto; display: block; margin-bottom: 10px; border-radius: 5px;\`).
-            * The article's \`title\` MUST be a clickable hyperlink pointing to its \`originalUrl\` (display: block; font-size: 18px; font-weight: bold; color: #007bff; text-decoration: none; margin-bottom: 5px;).
-            * Display the \`source\` name in a smaller, muted font (display: block; font-size: 11px; color: #555555; margin-bottom: 8px;).
-            * Display the \`summary\` as the main body text for the article (font-size: 14px; color: #444444; line-height: 1.5;).
+        4.  **Article Layout:**
+            * Use a single-column layout for articles.
+            * Each article should have a clear headline, a brief summary, and a "Read More" button linking to the original article.
+            * If an \`imageUrl\` is provided for an article, display it above the headline.
 
-        5.  **Pull Quote Section:**
-            * After the first or second article, include a clearly marked "Quote:" section.
-            * Use a background color (background-color: #f9f9f9; padding: 15px; border-left: 5px solid #cccccc; margin: 20px 0;).
-            * For the quote, use the summary of the first article. Style it as italic (font-style: italic; color: #666666;).
+        5.  **Styling:**
+            * Use inline CSS for all styling to ensure maximum compatibility with email clients.
+            * Buttons should have a solid background color, rounded corners, and clear, legible text.
+            * Use ample white space to improve readability.
 
-        6.  **Styling (Inline CSS):**
-            * **ALL CSS MUST BE APPLIED AS INLINE STYLES directly to the HTML elements.** This ensures maximum compatibility with PDF renderers. Do not use <style> tags or external stylesheets.
-            * Focus on basic styles like font-size, color, background-color, margin, padding, border, text-decoration, display, and text-align.
+        6.  **Footer:**
+            * Include a footer with your company name, address, and a link to unsubscribe.
+            * Add social media icons (as links) for platforms like Twitter, LinkedIn, and Facebook.
 
         **JSON Data to Use:**
         \`\`\`json
-        ${JSON.stringify({ articles: articlesForPrompt, flyerImageUrl }, null, 2)}
+        ${JSON.stringify({ articles: articlesForPrompt }, null, 2)}
         \`\`\`
 
-        **IMPORTANT: Your response MUST be only the raw HTML code, starting with <!DOCTYPE html> and containing all the specified elements with INLINE STYLES. Do not add any commentary, explanations, or markdown formatting before or after the code block.**
+        **IMPORTANT: Your response MUST be only the raw HTML code, starting with <!DOCTYPE html>. Do not add any commentary or explanations.**
     `;
 };
 
@@ -220,7 +223,14 @@ router.post('/:id/send', auth, async (req, res) => {
                     to: recipients.map(r => r.email),
                     from: { name: 'NewsLetterAI', email: process.env.FROM_EMAIL },
                     subject: `Your Newsletter: ${newsletter.title}`,
-                    html: newsletter.htmlContent,
+                    html: `
+                        <p>Hi there,</p>
+                        <p>Here is your latest newsletter, <strong>${newsletter.title}</strong>! We've gathered some of the most interesting stories and updates for you. We hope you enjoy it!</p>
+                        ${newsletter.htmlContent}
+                        <p>Thanks for being a subscriber!</p>
+                        <p>Best,</p>
+                        <p>The NewsLetterAI Team</p>
+                    `,
                 };
                 await sgMail.send(msg);
             }
