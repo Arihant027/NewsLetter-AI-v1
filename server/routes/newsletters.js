@@ -7,6 +7,7 @@ import Newsletter from '../models/newsletter.model.js';
 import User from '../models/user.model.js';
 import auth from '../middleware/auth.js';
 import Notification from '../models/notification.model.js';
+import Category from '../models/category.model.js';
 
 const router = Router();
 
@@ -21,25 +22,16 @@ if (process.env.SENDGRID_API_KEY) {
 // --- Initialize Gemini AI ---
 const genAI = process.env.GEMINI_API_KEY ? new GoogleGenerativeAI(process.env.GEMINI_API_KEY) : null;
 
-/**
- * Creates a sophisticated, detailed prompt for the AI to generate a newsletter HTML.
- * This new prompt includes instructions for layout, images, and styling.
- * @param {Array} articles - The list of articles, including imageUrls.
- * @param {string} title - The title of the newsletter.
- * @returns {string} The complete prompt for the AI model.
- */
-const createAdvancedNewsletterHtmlPrompt = (articles, title) => {
-    // Prepare only the necessary article data for the prompt.
+const createAdvancedNewsletterHtmlPrompt = (articles, title, flyerImageUrl) => {
     const articlesForPrompt = articles.map(a => ({
         title: a.title,
         summary: a.summary,
         source: a.sourceName,
         category: a.category,
         originalUrl: a.originalUrl,
-        imageUrl: a.imageUrl // Include the image URL
+        imageUrl: a.imageUrl
     }));
 
-    // The revised, simpler prompt
     return `
         Act as an expert HTML and CSS email designer. Your task is to generate a single, complete HTML file for a professional newsletter based on the provided JSON data. The design should be clean, readable, and render reliably as a PDF.
 
@@ -55,30 +47,34 @@ const createAdvancedNewsletterHtmlPrompt = (articles, title) => {
             * Prominently display the main newsletter title: "${title}" (font-size: 24px; font-weight: bold; color: #333333; padding-bottom: 10px; border-bottom: 2px solid #eeeeee; margin-bottom: 20px; text-align: center;).
             * Below the title, include the Date (${format(new Date(), 'PP')}) and "Edition 1, Volume 1" (display: block; font-size: 12px; color: #777777; text-align: center; margin-bottom: 15px;).
 
-        3.  **Article Layout (Single Column):**
+        3.  **Flyer Image:**
+            * If a \`flyerImageUrl\` is provided, include it at the very top of the newsletter body, right after the header. The image should be responsive within the 600px container (\`max-width: 100%; height: auto; display: block; margin-bottom: 20px; border-radius: 5px;\`).
+
+        4.  **Article Layout (Single Column):**
             * Each article should be separated by a subtle divider (border-bottom: 1px solid #eeeeee; padding-bottom: 20px; margin-bottom: 20px;). The last article should not have this bottom border.
             * If an \`imageUrl\` is provided for an article, include it at the top of the article section. The image should be responsive within the 600px container (\`max-width: 100%; height: auto; display: block; margin-bottom: 10px; border-radius: 5px;\`).
             * The article's \`title\` MUST be a clickable hyperlink pointing to its \`originalUrl\` (display: block; font-size: 18px; font-weight: bold; color: #007bff; text-decoration: none; margin-bottom: 5px;).
             * Display the \`source\` name in a smaller, muted font (display: block; font-size: 11px; color: #555555; margin-bottom: 8px;).
             * Display the \`summary\` as the main body text for the article (font-size: 14px; color: #444444; line-height: 1.5;).
 
-        4.  **Pull Quote Section:**
+        5.  **Pull Quote Section:**
             * After the first or second article, include a clearly marked "Quote:" section.
             * Use a background color (background-color: #f9f9f9; padding: 15px; border-left: 5px solid #cccccc; margin: 20px 0;).
             * For the quote, use the summary of the first article. Style it as italic (font-style: italic; color: #666666;).
 
-        5.  **Styling (Inline CSS):**
+        6.  **Styling (Inline CSS):**
             * **ALL CSS MUST BE APPLIED AS INLINE STYLES directly to the HTML elements.** This ensures maximum compatibility with PDF renderers. Do not use <style> tags or external stylesheets.
             * Focus on basic styles like font-size, color, background-color, margin, padding, border, text-decoration, display, and text-align.
 
         **JSON Data to Use:**
         \`\`\`json
-        ${JSON.stringify(articlesForPrompt, null, 2)}
+        ${JSON.stringify({ articles: articlesForPrompt, flyerImageUrl }, null, 2)}
         \`\`\`
 
         **IMPORTANT: Your response MUST be only the raw HTML code, starting with <!DOCTYPE html> and containing all the specified elements with INLINE STYLES. Do not add any commentary, explanations, or markdown formatting before or after the code block.**
     `;
 };
+
 
 // GET all newsletters for the logged-in admin's categories
 router.get('/', auth, async (req, res) => {
@@ -109,10 +105,13 @@ router.post('/generate-and-save', auth, async (req, res) => {
             return res.status(400).json({ message: 'Title, category, and articles are required.' });
         }
 
+        const categoryData = await Category.findOne({ name: category });
+        const flyerImageUrl = categoryData ? categoryData.flyerImageUrl : null;
+
         // 1. Generate HTML with AI using the new advanced prompt
         console.log("[PDF LOG] Generating HTML with advanced prompt...");
         const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
-        const prompt = createAdvancedNewsletterHtmlPrompt(articles, title); // Using the new function
+        const prompt = createAdvancedNewsletterHtmlPrompt(articles, title, flyerImageUrl);
         
         const result = await model.generateContent(prompt);
         let generatedHtml = result.response.text().replace(/^```html\n/, '').replace(/\n```$/, '');
@@ -139,7 +138,8 @@ router.post('/generate-and-save', auth, async (req, res) => {
             pdfContent: {
                 data: Buffer.from(pdfBuffer),
                 contentType: 'application/pdf'
-            }
+            },
+            htmlContent: generatedHtml
         });
         await newNewsletter.save();
         console.log(`[PDF LOG] Successfully saved newsletter with ID: ${newNewsletter._id}`);
@@ -220,13 +220,7 @@ router.post('/:id/send', auth, async (req, res) => {
                     to: recipients.map(r => r.email),
                     from: { name: 'NewsLetterAI', email: process.env.FROM_EMAIL },
                     subject: `Your Newsletter: ${newsletter.title}`,
-                    html: `<p>A new newsletter, <strong>${newsletter.title}</strong>, is now available. Please find it attached.</p>`,
-                    attachments: [{
-                        content: newsletter.pdfContent.data.toString('base64'),
-                        filename: `${newsletter.title.replace(/\s/g, '_')}.pdf`,
-                        type: 'application/pdf',
-                        disposition: 'attachment',
-                    }],
+                    html: newsletter.htmlContent,
                 };
                 await sgMail.send(msg);
             }

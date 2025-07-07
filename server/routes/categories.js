@@ -35,9 +35,9 @@ router.post('/', auth, isAdminOrSuperAdmin, async (req, res) => {
         return res.status(403).json({ message: 'Access denied. Superadmin permission required.' });
     }
     try {
-        const { name, keywords } = req.body;
+        const { name, keywords, flyerImageUrl } = req.body;
         if (!name) return res.status(400).json({ message: 'Category name is required.' });
-        const newCategory = new Category({ name, keywords });
+        const newCategory = new Category({ name, keywords, flyerImageUrl });
         await newCategory.save();
         res.status(201).json(newCategory);
     } catch (err) {
@@ -49,7 +49,7 @@ router.post('/', auth, isAdminOrSuperAdmin, async (req, res) => {
 // PATCH - Update a category (Admins and Superadmins)
 router.patch('/:id', auth, isAdminOrSuperAdmin, async (req, res) => {
     try {
-        const { name, keywords } = req.body;
+        const { name, keywords, flyerImageUrl } = req.body;
         const category = await Category.findById(req.params.id);
 
         if (!category) {
@@ -65,7 +65,7 @@ router.patch('/:id', auth, isAdminOrSuperAdmin, async (req, res) => {
 
         const updatedCategory = await Category.findByIdAndUpdate(
             req.params.id,
-            { name, keywords },
+            { name, keywords, flyerImageUrl },
             { new: true }
         );
 

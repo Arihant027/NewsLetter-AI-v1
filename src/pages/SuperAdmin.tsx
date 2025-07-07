@@ -37,7 +37,7 @@ import { toast } from 'sonner';
 
 // --- Data Types ---
 interface Admin { _id: string; name: string; email: string; userType: 'admin' | 'superadmin'; status: 'Active' | 'Inactive'; categories: string[]; }
-interface Category { _id: string; name: string; admins: string[]; }
+interface Category { _id: string; name: string; admins: string[]; flyerImageUrl?: string; }
 interface RegularUser { _id: string; name: string; email: string; status: 'Active' | 'Inactive'; categories: string[]; createdAt: string; }
 
 // --- Zod Schemas ---
@@ -51,7 +51,7 @@ const adminSchema = z.object({
 });
 type AdminFormData = z.infer<typeof adminSchema>;
 
-const categorySchema = z.object({ name: z.string().min(2, "Category name is required.") });
+const categorySchema = z.object({ name: z.string().min(2, "Category name is required."), flyerImageUrl: z.string().optional() });
 type CategoryFormData = z.infer<typeof categorySchema>;
 
 const addUserSchema = z.object({
@@ -411,6 +411,7 @@ const SuperAdmin = () => {
         <DialogContent><DialogHeader><DialogTitle>Add New Category</DialogTitle></DialogHeader>
             <form onSubmit={categoryForm.handleSubmit(data => addCategoryMutation.mutate(data))} className="space-y-4 pt-4">
                 <div><Label htmlFor="category-name">Category Name</Label><Input id="category-name" {...categoryForm.register("name")} />{categoryForm.formState.errors.name && <p className="text-sm text-destructive mt-1">{categoryForm.formState.errors.name.message}</p>}</div>
+                <div><Label htmlFor="flyer-image-url">Flyer Image URL</Label><Input id="flyer-image-url" {...categoryForm.register("flyerImageUrl")} /></div>
                 <DialogFooter><Button type="button" variant="secondary" onClick={() => setIsCategoryFormOpen(false)}>Cancel</Button><Button type="submit" disabled={addCategoryMutation.isPending}>{addCategoryMutation.isPending ? "Adding..." : "Add Category"}</Button></DialogFooter>
             </form>
         </DialogContent>

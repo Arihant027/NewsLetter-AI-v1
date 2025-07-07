@@ -117,21 +117,15 @@ router.post('/send-newsletter-to-self', auth, async (req, res) => {
         }
 
         const newsletter = await Newsletter.findById(newsletterId);
-        if (!newsletter || !newsletter.pdfContent || !newsletter.pdfContent.data) {
-            return res.status(404).json({ message: 'Newsletter or its PDF content not found.' });
+        if (!newsletter || !newsletter.htmlContent) {
+            return res.status(404).json({ message: 'Newsletter or its HTML content not found.' });
         }
 
         const msg = {
             to: user.email,
             from: { name: 'NewsLetterAI', email: process.env.FROM_EMAIL },
             subject: `Your Requested Newsletter: ${newsletter.title}`,
-            html: `<p>Hi ${user.name || ''},</p><p>As requested, the newsletter "<strong>${newsletter.title}</strong>" is attached to this email.</p>`,
-            attachments: [{
-                content: newsletter.pdfContent.data.toString('base64'),
-                filename: `${newsletter.title.replace(/\s/g, '_')}.pdf`,
-                type: 'application/pdf',
-                disposition: 'attachment',
-            }],
+            html: newsletter.htmlContent,
         };
         
         await sgMail.send(msg);

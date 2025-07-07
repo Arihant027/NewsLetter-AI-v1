@@ -33,7 +33,7 @@ import { useSearchParams } from 'react-router-dom';
 // --- Data Types ---
 interface Newsletter { _id: string; title: string; category: string; status: 'Not Sent' | 'pending' | 'approved' | 'declined' | 'sent'; articles: { _id: string }[]; createdAt: string; }
 interface Subscriber { _id: string; name: string; email: string; categories: string[]; }
-interface CategoryStat { _id: string; name: string; subscriberCount: number; newsletterCount: number; keywords: string[]; }
+interface CategoryStat { _id: string; name: string; subscriberCount: number; newsletterCount: number; keywords: string[]; flyerImageUrl?: string; }
 interface NewsArticle { source: { name: string; }; title: string; description: string; url: string; urlToImage: string; content: string; summary?: string; }
 interface CuratedArticle { _id: string; title: string; summary: string; sourceName: string; category: string; originalUrl: string; imageUrl?: string;}
 interface SystemCategory { _id: string; name: string; }
@@ -50,6 +50,7 @@ const categorySchema = z.object({
   _id: z.string().optional(),
   name: z.string().min(2, "Name is required."),
   keywords: z.array(z.string()).default([]),
+  flyerImageUrl: z.string().optional(),
 });
 type CategoryFormData = z.infer<typeof categorySchema>;
 
@@ -264,7 +265,7 @@ const Dashboard = () => {
 
     useEffect(() => {
         if (isCategoryFormOpen && editingCategory) {
-            categoryForm.reset({ _id: editingCategory._id, name: editingCategory.name, keywords: editingCategory.keywords || [] });
+            categoryForm.reset({ _id: editingCategory._id, name: editingCategory.name, keywords: editingCategory.keywords || [], flyerImageUrl: editingCategory.flyerImageUrl || '' });
         }
     }, [isCategoryFormOpen, editingCategory, categoryForm]);
     
@@ -591,6 +592,10 @@ const Dashboard = () => {
                             />
                         )}
                     />
+                </div>
+                <div>
+                    <Label htmlFor="flyer-image-url">Flyer Image URL</Label>
+                    <Input id="flyer-image-url" {...categoryForm.register("flyerImageUrl")} />
                 </div>
                 <DialogFooter>
                     <Button type="button" variant="secondary" onClick={() => setIsCategoryFormOpen(false)}>Cancel</Button>
